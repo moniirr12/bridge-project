@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspection Form</title>
+    <link rel="stylesheet" href="test.css">
+<body>
+    <div class="container">
+        <!-- Inspection Header -->
+        <div class="inspection-header">
+            <h1>Inspection for Hadrian Wall (Bridge #9)</h1>
+            <table>
+                <tr>
+                    <th>Inspection Date</th>
+                    <td>26/02/2025</td>
+                </tr>
+                <tr>
+                    <th>Inspection Type</th>
+                    <td>
+                        <div class="inspection-type">
+                            <button class="inspection-type-btn" data-type="P1">PI</button>
+                            <button class="inspection-type-btn" data-type="G1">GI</button>
+                            <button class="inspection-type-btn" data-type="S1">SI</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Inspector Name</th>
+                    <td><input type="text" placeholder="Click to edit name"></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Separator -->
+        <div class="separator"></div>
+
+        <!-- Existing Form Content -->
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+        <div class="span-tabs" id="span-tabs">
+            <!-- Span tabs will be injected here by JavaScript -->
+        </div>
+        <div id="form-content">
+            <!-- Form steps will be injected here by JavaScript -->
+        </div>
+        <div class="navigation">
+            <button id="prev-btn" disabled>Previous</button>
+            <button id="next-btn">Next</button>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div class="container">
+        <div id="uploadArea" class="upload-area">
+            <div class="upload-icon">📤</div>
+            <p class="text-lg">Drag & drop or click to upload files</p>
+            <input type="file" id="fileInput" multiple style="display: none;">
+        </div>
+        
+        <!-- New Toolbar Row -->
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button id="cutBtn" class="toolbar-btn" title="Cut">
+                    <span>✂️</span> Cut
+                </button>
+                <button id="pasteBtn" class="toolbar-btn" disabled title="Paste">
+                    <span>📋</span> Paste
+                </button>
+                <button id="deleteBtn" class="toolbar-btn" title="Delete">
+                    <span>🗑️</span> Delete
+                </button>
+            </div>
+            
+            <div class="toolbar-group">
+                <button id="createFolderBtn" class="toolbar-btn" title="Create Folder">
+                    <span>📁</span> Create Folder
+                </button>
+            </div>
+            
+            <div class="toolbar-group">
+                <div class="view-options">
+                    <button class="toolbar-btn" title="View Options">
+                        <span>👁️</span> View ▼
+                    </button>
+                    <div class="view-dropdown">
+                        <button onclick="changeView('grid')">Grid View</button>
+                        <button onclick="changeView('list')">List View</button>
+                        <button onclick="changeView('icons')">Icons Only</button>
+                    </div>
+                </div>
+                <button id="sortBtn" class="toolbar-btn" title="Sort">
+                    <span>🔃</span> Sort
+                </button>
+            </div>
+        </div>
+        
+        <div id="folderForm" class="add-folder-form" style="display: none;">
+            <input type="text" id="newFolderName" class="input flex-grow" placeholder="Enter folder name">
+            <button id="addFolderBtn" class="btn btn-success">Add</button>
+            <button id="cancelFolderBtn" class="btn btn-ghost">✕</button>
+        </div>
+        
+        <div id="breadcrumbs" class="breadcrumbs"></div>
+        <button id="backBtn" class="back-btn btn btn-ghost" style="display: none;">
+            ← Back
+        </button>
+        
+        <div id="fileGrid" class="file-grid">
+            <!-- Files will be added here dynamically -->
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="test.js"></script>
+</body>
+</html>

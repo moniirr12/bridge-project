@@ -1,0 +1,437 @@
+function createActionButtons(doc) {
+    const actionsCell = document.createElement('td');
+  
+    // Edit Button
+    const editButton = document.createElement('button');
+    editButton.textContent = 'Edit';
+    editButton.classList.add('normal-btn');
+    editButton.title = 'Edit Report';
+    editButton.onclick = function () {
+        sessionStorage.setItem('inspectionStructureNumber', doc.structure_number);
+        sessionStorage.setItem('inspectionDate', doc.date);
+        window.open('../inspection/inspection.html', '_blank');
+    };
+    actionsCell.appendChild(editButton);
+
+    // Create BCI button
+    const bciButton = document.createElement('button');
+    bciButton.textContent = 'BCI';
+    bciButton.classList.add('bci-button');
+    bciButton.addEventListener('click', async function () {
+        console.log('BCI button clicked for date:', doc.date);    
+    
+        try {
+            // 1. Get structure info
+            const structureId = sessionStorage.getItem('structureId');
+            const structureName = sessionStorage.getItem('structureName');
+            
+            if (!structureId || !structureName) {
+                throw new Error('Missing structure information');
+            }
+    
+            // 2. Fetch bridge data to get span count
+            const bridgeResponse = await fetch(`http://localhost:3000/api/bridges/${structureId}`);
+            if (!bridgeResponse.ok) throw new Error('Failed to fetch bridge data');
+            const bridge = await bridgeResponse.json();
+            const totalSpans = bridge.span_number || 1;
+    
+            // 3. Fetch ALL defects for this structure
+            const defectsResponse = await fetch(
+                `http://localhost:3000/api/defectsbci?structureId=${structureId}`
+            );
+            if (!defectsResponse.ok) throw new Error('Failed to fetch defects');
+            const allDefects = await defectsResponse.json();
+    
+            // 4. Filter defects by inspection date CLIENT-SIDE
+            const defectsForThisDate = allDefects.filter(defect => {
+                return defect.inspection_date === doc.date;
+            });
+    
+            // 5. Fetch elements
+            const elementsResponse = await fetch('http://localhost:3000/api/elements');
+            if (!elementsResponse.ok) throw new Error('Failed to fetch elements');
+            const elements = await elementsResponse.json();
+    
+            // 6. Create SINGLE window
+            const bciWindow = window.open("", "BCI Report", "width=1200,height=800,scrollbars=yes");
+            if (!bciWindow) {
+                throw new Error('Popup window was blocked. Please allow popups for this site.');
+            }
+    
+            // 7. Generate HTML header with enhanced styling
+            let htmlContent = `
+                <html>
+                    <head>
+                        <title>BCI Report - ${structureName}</title>
+                        <style>
+                            @page {
+                                size: A4;
+                                margin: 10mm;
+                            }
+                            body {
+                                font-family: Arial, sans-serif;
+                                margin: 0;
+                                padding: 20px;
+                            }
+                            .span-section {
+                                margin-bottom: 0;
+                                page-break-after: always;
+                                height: 100%;
+                            }
+                            .span-header {
+                                font-size: 24px;
+                                margin: 10px 0;
+                                color: #2c3e50;
+                                border-bottom: 2px solid #3498db;
+                                padding-bottom: 5px;
+                            }
+                            .fixed-table {
+                                width: 100%;
+                                max-width: 900px;
+                                border-collapse: collapse;
+                                margin-bottom: 10px;
+                                table-layout: fixed;
+                                font-size: 0.8em;
+                            }
+                            .variable-table {
+                                width: 100%;
+                                max-width: 900px;
+                                border-collapse: collapse;
+                                margin-bottom: 15px;
+                                table-layout: auto;
+                                font-size: 0.8em;
+                            }
+                            th, td {
+                                border: 1px solid black;
+                                padding: 4px;
+                                text-align: left;
+                                word-wrap: break-word;
+                            }
+                            th {
+                                background-color: #f2f2f2;
+                                font-weight: bold;
+                            }
+                            .vertical-text {
+                                writing-mode: vertical-rl;
+                                transform: rotate(180deg);
+                                text-align: center;
+                                font-weight: bold;
+                                white-space: nowrap;
+                            }
+                            .variable-table th:nth-child(9),
+                            .variable-table td:nth-child(9) {
+                                width: 25%;
+                            }
+                            .bci-results {
+                                display: flex;
+                                justify-content: center;
+                                margin: 15px 0;
+                            }
+                            .bci-table {
+                                width: 100%;
+                                max-width: 900px;
+                                border-collapse: collapse;
+                                margin: 10px 0;
+                                font-size: 0.9em;
+                            }
+                            .notes-section {
+                                margin-top: 20px;
+                                border: 1px solid #ddd;
+                                padding: 10px;
+                                min-height: 150px;
+                            }
+                            .photo-placeholder {
+                                border: 1px dashed #ccc;
+                                height: 120px;
+                                margin: 10px 0;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: #666;
+                            }
+                            .page-footer {
+                                font-size: 0.7em;
+                                text-align: center;
+                                margin-top: 10px;
+                                color: #666;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1 style="text-align: center;">BCI Report - ${structureName}</h1>
+                        <h2 style="text-align: center;">Inspection Date: ${doc.date}</h2>
+            `;
+    
+            // 8. Add content for each span (2 pages per span)
+            for (let spanNum = 1; spanNum <= totalSpans; spanNum++) {
+                // Filter data for this span
+                const spanDefects = defectsForThisDate.filter(defect => 
+                    defect.span == spanNum
+                );
+                const spanElements = elements.filter(el => 
+                    el.span_number == null || el.span_number == spanNum
+                );
+    
+                if (spanElements.length > 0 || spanDefects.length > 0) {
+                    const combinedData = combineData(spanElements, spanDefects, doc.date);
+                    const inspectorName = spanDefects[0]?.inspector_name || 'Not Recorded';
+                    const bciCrit = spanDefects.length > 0 ? spanDefects[0].bci_crit : 'N/A';
+                    const bciAv = spanDefects.length > 0 ? spanDefects[0].bci_av : 'N/A';
+    
+                    // ========== PAGE 1 (Original Content) ==========
+                    htmlContent += `
+                        <div class="span-section">
+                            <div class="span-header">Span ${spanNum} - Page 1 of 2</div>
+                            <div class="fixed-values">
+                                <table class="fixed-table">
+                                    <tr>
+                                        <td colspan="3">Superficial</td>
+                                        <td colspan="3">General</td>
+                                        <td colspan="3">Principal</td>
+                                        <td colspan="3">Special</td>
+                                        <td colspan="12">Form</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="6">Inspector: ${inspectorName}</td>
+                                        <td colspan="4">Date: ${doc.date}</td>
+                                        <td colspan="6">Next inspection:</td>
+                                        <td colspan="8">Road Ref:</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="10">Bridge name: ${structureName}</td>
+                                        <td colspan="6">Bridge Ref: ${structureId}</td>
+                                        <td rowspan="4" colspan="1" class="vertical-text">Bridge code</td>
+                                        <td colspan="7"><div style="display: flex; justify-content: space-between;"><span>Primary deck form</span><span>${bridge.primary_form || 'N/A'}</span></div></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="5">Map Ref: ${bridge.latitude?.toFixed(3) || 'N/A'}, ${bridge.longitude?.toFixed(3) || 'N/A'}</td>
+                                        <td colspan="5">OSE: ${bridge.OSE || 'N/A'}</td>
+                                        <td colspan="7">OSN: ${bridge.OSN || 'N/A'}</td>
+                                        <td colspan="7"><div style="display: flex; justify-content: space-between;"><span>Primary deck material</span><span>${bridge.primary_material || 'N/A'}</span></div></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="4">Span: ${spanNum} of ${totalSpans}</td>
+                                        <td colspan="6">Span Width (m): ${bridge.span || 'N/A'}</td>
+                                        <td colspan="6">Span Length (m): ${bridge.length || 'N/A'}</td>
+                                        <td colspan="7"><div style="display: flex; justify-content: space-between;"><span>Secondary deck form</span><span>${bridge.secondary_form || 'N/A'}</span></div></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="10">All above ground elements inspected</td>
+                                        <td colspan="6">Photograph</td>
+                                        <td colspan="7"><div style="display: flex; justify-content: space-between;"><span>Secondary deck material</span><span>${bridge.secondary_material || 'N/A'}</span></div></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="bci-results">
+                                <table class="bci-table">
+                                    <tr>
+                                        <td><strong>BCI crit</strong>: ${bciCrit} <strong>BCI ave</strong>: ${bciAv}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <table class="variable-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Description</th>
+                                        <th>S</th>
+                                        <th>Ex</th>
+                                        <th>Def</th>
+                                        <th>W</th>
+                                        <th>P</th>
+                                        <th>Cost</th>
+                                        <th>Comments</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generateBCITableRows(combinedData)}
+                                </tbody>
+                            </table>
+                            <div class="page-footer">Page 1 of 2 - Span ${spanNum}</div>
+                        </div>
+                    `;
+    
+                    // ========== PAGE 2 (Additional Details) ==========
+                    htmlContent += `
+                        <div class="span-section">
+                            <div class="span-header">Span ${spanNum} - Page 2 of 2</div>
+                            
+                            <!-- Defect Summary Table -->
+                            <h3>Defect Summary</h3>
+                            <table class="variable-table">
+                                <thead>
+                                    <tr>
+                                        <th>Element</th>
+                                        <th>Defect Type</th>
+                                        <th>Severity</th>
+                                        <th>Extent</th>
+                                        <th>Urgency</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generateDefectSummaryRows(combinedData)}
+                                </tbody>
+                            </table>
+                            
+                            <!-- Recommended Actions -->
+                            <h3>Recommended Actions</h3>
+                            <table class="variable-table">
+                                <thead>
+                                    <tr>
+                                        <th>Element</th>
+                                        <th>Recommended Action</th>
+                                        <th>Estimated Cost</th>
+                                        <th>Priority</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generateActionRows(combinedData)}
+                                </tbody>
+                            </table>
+                            
+                            <!-- Photo/Diagram Placeholder -->
+                            <h3>Visual Documentation</h3>
+                            <div class="photo-placeholder">
+                                [Photo/Diagram of defects in Span ${spanNum}]
+                            </div>
+                            
+                            <!-- Notes Section -->
+                            <h3>Inspector Notes</h3>
+                            <div class="notes-section">
+                                ${generateNotesContent(spanDefects)}
+                            </div>
+                            
+                            <!-- Repeat BCI Results -->
+                            <div class="bci-results">
+                                <table class="bci-table">
+                                    <tr>
+                                        <td><strong>BCI crit</strong>: ${bciCrit} <strong>BCI ave</strong>: ${bciAv}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <div class="page-footer">Page 2 of 2 - Span ${spanNum}</div>
+                        </div>
+                    `;
+                }
+            }
+    
+            // 9. Close HTML and write to window
+            htmlContent += `</body></html>`;
+            
+            bciWindow.document.open();
+            bciWindow.document.write(htmlContent);
+            bciWindow.document.close();
+            bciWindow.focus();
+    
+        } catch (error) {
+            console.error('BCI generation failed:', error);
+            alert(`Error: ${error.message}`);
+        }
+    });
+  
+    // Append buttons to the actions cell
+    actionsCell.appendChild(editButton);
+    actionsCell.appendChild(bciButton);
+  
+    return actionsCell;
+}
+
+function combineData(elements, defects, selectedDate) {
+    return elements.map(element => {
+        const defect = defects.find(defect => 
+            defect.element_no === element.element_number && 
+            defect.inspection_date === selectedDate
+        );
+  
+        return {
+            ...element,
+            inspection_date: defect ? defect.inspection_date : '-',
+            s: defect ? defect.s : '-',
+            ex: defect ? defect.ex : '-',
+            def: defect ? defect.def : '-',
+            w: defect ? defect.w : '-',
+            p: defect ? defect.p : '-',
+            cost: defect ? defect.cost : '',
+            comments_remarks: defect ? defect.comments_remarks : '',
+            bci_crit: defect ? defect.bci_crit : '-',
+            bci_av: defect ? defect.bci_av : '-'
+        };
+    });
+}
+
+function generateBCITableRows(data) {
+    let rows = "";
+    data.forEach((item) => {
+        rows += `
+            <tr>
+                <td>${item.element_number}</td>
+                <td>${item.description}</td>
+                <td>${item.s}</td>
+                <td>${item.ex}</td>
+                <td>${item.def}</td>
+                <td>${item.w}</td>
+                <td>${item.p}</td>
+                <td>${item.cost}</td>
+                <td>${item.comments_remarks}</td>
+            </tr>
+        `;
+    });
+    return rows;
+}
+
+
+
+
+
+// Helper functions for generating additional content
+function generateDefectSummaryRows(data) {
+    return data
+        .filter(item => item.def !== '-')
+        .map(item => `
+            <tr>
+                <td>${item.element_number}</td>
+                <td>${item.description}</td>
+                <td>${getSeverityDescription(item.s)}</td>
+                <td>${getExtentDescription(item.ex)}</td>
+                <td>${getPriorityDescription(item.p)}</td>
+            </tr>
+        `)
+        .join('') || '<tr><td colspan="5">No significant defects recorded</td></tr>';
+}
+
+function generateActionRows(data) {
+    return data
+        .filter(item => item.def !== '-' || item.comments_remarks)
+        .map(item => `
+            <tr>
+                <td>${item.element_number}</td>
+                <td>${item.comments_remarks || 'Monitoring recommended'}</td>
+                <td>${item.cost || '-'}</td>
+                <td>${getPriorityDescription(item.p)}</td>
+            </tr>
+        `)
+        .join('') || '<tr><td colspan="4">No specific actions required</td></tr>';
+}
+
+function generateNotesContent(defects) {
+    const uniqueNotes = [...new Set(defects.map(d => d.comments_remarks).filter(Boolean))];
+    return uniqueNotes.length > 0 
+        ? uniqueNotes.map(note => `<p>• ${note}</p>`).join('')
+        : '<p>No additional notes recorded</p>';
+}
+
+function getSeverityDescription(code) {
+    const map = { '1': 'Very Minor', '2': 'Minor', '3': 'Moderate', '4': 'Severe' };
+    return map[code] || code;
+}
+
+function getExtentDescription(code) {
+    const map = { 'A': '<10%', 'B': '10-25%', 'C': '25-50%', 'D': '>50%' };
+    return map[code] || code;
+}
+
+function getPriorityDescription(code) {
+    const map = { '1': 'Low', '2': 'Medium', '3': 'High', '4': 'Critical' };
+    return map[code] || code;
+}

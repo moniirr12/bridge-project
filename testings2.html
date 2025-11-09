@@ -1,0 +1,166 @@
+let photoData = [];
+
+// Open modal with defect ID context
+function openPhotoModal() {
+  const target = event.target;
+  const expandableRow = target.closest("tr.expandable-row");
+  let mainRow = expandableRow;
+  while (mainRow && !mainRow.classList.contains("main-row")) {
+    mainRow = mainRow.previousElementSibling;
+  }
+  const defectId = mainRow ? mainRow.dataset.rowId : null;
+  
+  // Store current defect ID
+  sessionStorage.setItem('currentDefectId', defectId);
+  
+  // Clear and rebuild preview container with only this defect's photos
+  const container = document.getElementById('previewContainer-photo');
+  container.innerHTML = '<label class="add-photo-photo" for="photoInput-photo">+</label><input type="file" id="photoInput-photo" accept="image/*" onchange="previewImages()" multiple />';
+  
+  // Show existing photos for this defect
+  if (defectId && photoData[defectId]) {
+    photoData[defectId].forEach((photo, index) => {
+      const div = document.createElement('div');
+      div.classList.add('preview-item-photo');
+      div.innerHTML = `
+        <span class="remove-photo" onclick="removePhoto(this)">×</span>
+        <img src="${photo.photo_url}" alt="Photo Preview">
+        <textarea placeholder="Add description..." oninput="updatePhotoDescription(this, ${index})">${photo.photo_description}</textarea>
+      `;
+      container.insertBefore(div, container.lastElementChild);
+    });
+  }
+  
+  document.getElementById('uploadModal-photo').style.display = 'block';
+}
+
+// Close modal with confirmation
+function closePhotoModal() {
+  const shouldProceed = confirm("If you proceed to cancel, all progress will be lost. Continue?");
+  
+  if (shouldProceed) {
+    document.getElementById('uploadModal-photo').style.display = 'none';
+    document.getElementById('photoInput-photo').value = '';
+    document.getElementById('previewContainer-photo').innerHTML =
+      '<label class="add-photo-photo" for="photoInput-photo">+</label><input type="file" id="photoInput-photo" accept="image/*" onchange="previewImages()" multiple />';
+    photoData = [];
+  }
+}
+
+// Update previewImages to store by defect_id
+function previewImages() {
+  const input = document.getElementById('photoInput-photo');
+  const container = document.getElementById('previewContainer-photo');
+  const defectId = sessionStorage.getItem('currentDefectId');
+  
+  if (!defectId) return;
+
+  // Initialize array for this defect if it doesn't exist
+  if (!photoData[defectId]) {
+    photoData[defectId] = [];
+  }
+
+  Array.from(input.files).forEach((file) => {
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const div = document.createElement('div');
+        div.classList.add('preview-item-photo');
+        div.innerHTML = `
+          <span class="remove-photo" onclick="removePhoto(this)">×</span>
+          <img src="${e.target.result}" alt="Photo Preview">
+          <textarea placeholder="Add description..." oninput="updatePhotoDescription(this, ${photoData[defectId].length})"></textarea>
+        `;
+        container.insertBefore(div, container.lastElementChild);
+        
+        // Store data with defect_id
+        photoData[defectId].push({
+          defect_id: defectId,
+          photo_url: e.target.result,
+          photo_description: "",
+          display_order: photoData[defectId].length,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  input.value = '';
+  logPhotoData();
+}
+
+// Update description when user types
+function updatePhotoDescription(textarea, index) {
+  const defectId = sessionStorage.getItem('currentDefectId');
+  if (defectId && photoData[defectId] && index >= 0 && index < photoData[defectId].length) {
+    photoData[defectId][index].photo_description = textarea.value;
+  }
+}
+
+function prepareUploadData() {
+  const defectId = sessionStorage.getItem('currentDefectId');
+  return defectId && photoData[defectId] ? photoData[defectId] : [];
+}
+
+// Remove photo from preview and array
+function removePhoto(element) {
+  const previewItem = element.closest('.preview-item-photo');
+  const container = previewItem.parentNode;
+  const index = Array.from(container.children).indexOf(previewItem) - 1; // -1 for the input
+  const defectId = sessionStorage.getItem('currentDefectId');
+  
+  if (index >= 0 && defectId && photoData[defectId] && index < photoData[defectId].length) {
+    previewItem.remove();
+    photoData[defectId].splice(index, 1);
+    
+    // Update display orders after removal
+    photoData[defectId].forEach((photo, i) => {
+      photo.display_order = i;
+    });
+  }
+  console.log("Current photoData contents:", photoData);
+}
+
+// Prepare data for database submission
+function prepareUploadData() {
+  return photoData.map(photo => ({
+    defect_id: photo.defect_id,
+    photo_url: photo.photo_url,
+    photo_description: photo.photo_description,
+    display_order: photo.display_order,
+    file_name: photo.file_name,
+    file_size: photo.file_size,
+    file_type: photo.file_type
+  }));
+}
+
+// Upload photos to server
+function savePhotos() {
+  const uploadData = prepareUploadData();
+  
+  console.log("Data ready for database:", uploadData);
+  document.getElementById('uploadModal-photo').style.display = 'none';
+}
+
+// Helper function to log photo data
+function logPhotoData() {
+  console.log('Current photoData contents:');
+  
+  photoData.forEach((photo, index) => {
+    console.group(`Photo ${index + 1}:`);
+    console.log('Database-ready data:', {
+      defect_id: photo.defect_id,
+      photo_url: '...',
+      photo_description: photo.photo_description,
+      display_order: photo.display_order,
+      file_name: photo.file_name,
+      file_size: photo.file_size + ' bytes'
+    });
+    console.groupEnd();
+  });
+  
+  console.log('Total photos:', photoData.length);
+}

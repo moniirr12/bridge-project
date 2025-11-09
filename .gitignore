@@ -1,0 +1,10 @@
+# Node.js dependencies 
+node_modules/ 
+ 
+# Upload directories 
+uploads/ 
+temp_uploads/ 
+ 
+# Environment variables 
+.env 
+.env.local 

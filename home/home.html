@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArcForm | Structural Ballet</title>
+    <style>
+        :root {
+            --foundation: #2B2D2F;
+            --piling: #4A4E54;
+            --cable: #6B7D7D;
+            --decking: #8C5E58;
+            --safety: #E8DCD5;
+            --accent: #7A9E9F;
+        }
+
+        body {
+            margin: 0;
+            background: var(--foundation);
+            color: var(--safety);
+            font-family: 'Space Grotesk', sans-serif;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        .bridge-canvas {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .pylon {
+            position: absolute;
+            background: var(--piling);
+            width: 1.2vw;
+            height: 60vh;
+            bottom: 0;
+            transform-origin: bottom;
+            animation: erect 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .cable {
+            position: absolute;
+            background: var(--cable);
+            width: 0.2vw;
+            transform-origin: top;
+            transition: all 0.4s ease;
+            opacity: 0.8;
+        }
+
+        .deck-segment {
+            position: absolute;
+            background: var(--decking);
+            height: 1.5vh;
+            border-radius: 0.4vh;
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .auth-panel {
+            position: fixed;
+            top: 50%;
+            right: 2rem;
+            transform: translateY(-50%);
+            background: rgba(43, 45, 47, 0.95);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--cable);
+            backdrop-filter: blur(16px);
+            width: 320px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+            display: grid;
+            grid-template-rows: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .auth-row {
+            position: relative;
+            height: 48px;
+        }
+
+        .auth-input {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid var(--cable);
+            color: var(--safety);
+            padding: 0 0.5rem;
+            font-size: 1.1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .auth-input:focus {
+            outline: none;
+            border-bottom-color: var(--decking);
+            background: rgba(140, 94, 88, 0.1);
+        }
+
+        .auth-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .auth-btn {
+            background: var(--accent);
+            color: var(--foundation);
+            border: none;
+            padding: 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(122, 158, 159, 0.4);
+        }
+
+        .status-bar {
+            position: absolute;
+            bottom: -1.5rem;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--safety);
+            opacity: 0.8;
+        }
+
+        .force-indicator {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--safety);
+            border-radius: 50%;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            transition: transform 0.2s ease;
+        }
+
+        @keyframes erect {
+            0% { transform: scaleY(0); }
+            100% { transform: scaleY(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="bridge-canvas" id="bridgeCanvas">
+        <!-- Bridge elements will be injected here -->
+    </div>
+
+    <div class="auth-panel">
+        <div class="auth-row">
+            <input type="text" class="auth-input" placeholder="ARCHITECT ID">
+            <div class="status-bar" id="idStatus"></div>
+        </div>
+        
+        <div class="auth-row">
+            <input type="password" class="auth-input" placeholder="CONSTRUCTION KEY">
+            <div class="status-bar" id="keyStatus"></div>
+        </div>
+
+        <div class="auth-row">
+            <div class="auth-actions">
+                <button class="auth-btn" id="loginBtn">ERECT</button>
+                <button class="auth-btn" id="registerBtn" onclick="toNextPage()">FOUNDATE</button>
+            </div>
+            <div class="status-bar" id="actionStatus">INITIALIZING STRUCTURE</div>
+        </div>
+    </div>
+
+    <div class="force-indicator" id="forceIndicator"></div>
+
+    <script>
+        class ArtisticBridge {
+            constructor() {
+                this.canvas = document.getElementById('bridgeCanvas');
+                this.deckSegments = [];
+                this.initBridge();
+                this.initInteractions();
+            }
+
+            initBridge() {
+                // Simplified pylon structure
+                ['35%', '50%', '65%'].forEach(pos => {
+                    const pylon = document.createElement('div');
+                    pylon.className = 'pylon';
+                    pylon.style.left = pos;
+                    this.canvas.appendChild(pylon);
+                });
+
+                this.createCables();
+                this.createDeck();
+            }
+
+            createDeck() {
+                const segmentCount = 32;
+                for(let i = 0; i < segmentCount; i++) {
+                    const segment = document.createElement('div');
+                    segment.className = 'deck-segment';
+                    segment.style.width = `${100/segmentCount}%`;
+                    segment.style.left = `${i * (100/segmentCount)}%`;
+                    segment.style.bottom = '38vh';
+                    this.deckSegments.push(segment);
+                    this.canvas.appendChild(segment);
+                }
+            }
+
+            createCables() {
+                const cableAngles = [-15, -10, -5, 0, 5, 10, 15];
+                ['35%', '50%', '65%'].forEach(pylonPos => {
+                    cableAngles.forEach(angle => {
+                        const cable = document.createElement('div');
+                        cable.className = 'cable';
+                        cable.style.left = pylonPos;
+                        cable.style.height = '38vh';
+                        cable.style.transform = `rotate(${angle}deg)`;
+                        this.canvas.appendChild(cable);
+                    });
+                });
+            }
+
+            initInteractions() {
+                document.addEventListener('mousemove', (e) => {
+                    this.updateDeckForm(e.clientX);
+                    this.updateColorScheme(e.clientX);
+                });
+
+                document.addEventListener('mouseleave', () => {
+                    this.resetDeckForm();
+                });
+            }
+
+            updateDeckForm(mouseX) {
+                const maxDeflection = 60;
+                const influenceRadius = window.innerWidth * 0.4;
+                const deckingColor = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--decking').trim();
+
+                this.deckSegments.forEach((segment, index) => {
+                    const rect = segment.getBoundingClientRect();
+                    const segmentCenter = rect.left + rect.width/2;
+                    const distance = Math.abs(mouseX - segmentCenter);
+                    const intensity = 1 - Math.min(distance / influenceRadius, 1);
+                    
+                    if(intensity > 0) {
+                        const yOffset = Math.sin(intensity * Math.PI) * maxDeflection * intensity;
+                        const rotation = (mouseX - segmentCenter) / 50;
+                        const metallic = intensity * 20;
+
+                        segment.style.transform = `
+                            translateY(-${yOffset}px)
+                            rotateZ(${rotation}deg)
+                        `;
+                        segment.style.background = `
+                            linear-gradient(
+                                to bottom,
+                                hsl(25, 30%, ${45 + metallic}%),
+                                hsl(25, 25%, ${35 + metallic}%)
+                            )
+                        `;
+                        segment.style.boxShadow = `0 ${2 + intensity*4}px ${4 + intensity*8}px rgba(0,0,0,${0.1 + intensity*0.2})`;
+                    } else {
+                        segment.style.transform = '';
+                        segment.style.background = deckingColor;
+                        segment.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+                    }
+                });
+            }
+
+            resetDeckForm() {
+                const deckingColor = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--decking').trim();
+                
+                this.deckSegments.forEach(segment => {
+                    segment.style.transform = '';
+                    segment.style.background = deckingColor;
+                    segment.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+                });
+            }
+
+            updateColorScheme(mouseX) {
+                const hue = 200 + (mouseX / window.innerWidth * 30);
+                document.documentElement.style.setProperty('--cable', `hsl(${hue}, 20%, 50%)`);
+            }
+        }
+
+        // Initialize refined bridge
+        new ArtisticBridge();
+
+        // Auth panel interactions
+        const statusElements = {
+            id: document.getElementById('idStatus'),
+            key: document.getElementById('keyStatus'),
+            action: document.getElementById('actionStatus')
+        };
+
+        document.querySelectorAll('.auth-input').forEach(input => {
+            input.addEventListener('focus', () => {
+                statusElements[input.type === 'text' ? 'id' : 'key'].textContent = 
+                    input.type === 'text' ? "ENTER BLUEPRINT IDENTIFIER" : "INPUT STRUCTURAL CIPHER";
+            });
+            
+            input.addEventListener('blur', () => {
+                statusElements[input.type === 'text' ? 'id' : 'key'].textContent = "";
+            });
+        });
+
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            statusElements.action.textContent = "ERECTING SUPPORT STRUCTURE...";
+            setTimeout(() => statusElements.action.textContent = "STRUCTURE SECURED", 2000);
+        });
+
+        document.getElementById('registerBtn').addEventListener('click', () => {
+            statusElements.action.textContent = "POURING FOUNDATION...";
+            setTimeout(() => statusElements.action.textContent = "FOOTINGS SET", 2000);
+        });
+
+        function toNextPage() {
+            window.location.href = "../index/index.html";  // Change this URL to your desired next page
+        }
+    </script>
+</body>
+</html>
