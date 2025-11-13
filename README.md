@@ -3,3 +3,5 @@ I basically intended to have a platform to help manage bridges/structures. The s
 And add/view/delete/update inspections for each structure. I intend to generate very simply a report of each inspection as well.
 
 Very simple and mostly vibecoded it over a few months. I have a very basic knowledge of the coding languages from high school.
+
+what it's mainly missing is refining the report generation. not too worried about minor bugs when I save/retrieve reports.
