@@ -12,6 +12,9 @@ const fs = require('fs');
 const app = express();
 const db = new sqlite3.Database("./bridges.db");
 
+const session = require('express-session'); // for authentication sessions
+
+
 // Start the server
 const PORT = 3000;
 app.listen(PORT, () => {
@@ -24,7 +27,8 @@ app.listen(PORT, () => {
 app.use(cors({
     origin: ['http://localhost:5500', 'http://127.0.0.1:5500'], // Allow both origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allow these HTTP methods
-    allowedHeaders: ['Content-Type', 'Authorization'] // Allow these headers
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allow these headers
+    credentials: true // IMPORTANT: Allow cookies for authentication
 }));
 
 
@@ -301,7 +305,7 @@ app.get('/api/defectsbci', async (req, res) => {
         // First get the inspection ID(s)
         const inspectionQuery = `
             SELECT id, inspection_date, inspector_name FROM inspections 
-            WHERE structure_id = ?
+            WHERE structure_id = ?n
             ${date ? 'AND inspection_date = ?' : ''}
         `;
         const inspectionParams = date ? [structureId, date] : [structureId];
@@ -1694,4 +1698,125 @@ app.get('/api/bridges/:structureId/inspection-photos', (req, res) => {
             );
         }
     );
+});
+
+
+
+
+//Authentication code.
+
+// ADD SESSION MIDDLEWARE
+app.use(session({
+    secret: 'your-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        secure: false, // set to true in production with HTTPS
+        sameSite: 'lax'
+    }
+}));
+
+// AUTHENTICATION MIDDLEWARE
+function requireAuth(req, res, next) {
+    if (req.session && req.session.userId) {
+        next();
+    } else {
+        res.status(401).json({ error: 'Unauthorized - Please log in' });
+    }
+}
+
+// LOGIN ENDPOINT
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    console.log('Login attempt:', username);
+    
+    if (!username || !password) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Username and password required' 
+        });
+    }
+    
+    db.get(
+        'SELECT * FROM users WHERE username = ?',
+        [username],
+        (err, user) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ 
+                    success: false, 
+                    message: 'Server error' 
+                });
+            }
+            
+            if (!user) {
+                console.log('User not found:', username);
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Invalid username or password' 
+                });
+            }
+            
+            // Simple password check (we'll add bcrypt later)
+            if (password === user.password) {
+                // Set session
+                req.session.userId = user.id;
+                req.session.username = user.username;
+                req.session.organizationId = user.organization_id;
+                req.session.role = user.role;
+                
+                console.log('Login successful for:', username);
+                
+                // Update last login
+                db.run(
+                    'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                    [user.id]
+                );
+                
+                res.json({ 
+                    success: true,
+                    user: {
+                        username: user.username,
+                        role: user.role,
+                        fullName: user.full_name
+                    }
+                });
+            } else {
+                console.log('Invalid password for:', username);
+                res.status(401).json({ 
+                    success: false, 
+                    message: 'Invalid username or password' 
+                });
+            }
+        }
+    );
+});
+
+// LOGOUT ENDPOINT
+app.post('/api/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+            return res.status(500).json({ success: false });
+        }
+        res.json({ success: true });
+    });
+});
+
+// CHECK SESSION ENDPOINT (useful for debugging)
+app.get('/api/check-session', (req, res) => {
+    if (req.session && req.session.userId) {
+        res.json({
+            loggedIn: true,
+            userId: req.session.userId,
+            username: req.session.username,
+            organizationId: req.session.organizationId,
+            role: req.session.role
+        });
+    } else {
+        res.json({ loggedIn: false });
+    }
 });
